@@ -20,12 +20,13 @@ def initialize():
 
         for y in range(num):
             states[x].append({"a": 1, "b": 0})
-            if x > 40 and x < 45 and y > 40 and y < 45:
 
-                states[x][y] = ({"a": 0, "b": 1})
-            elif x > 50 and x < 55 and y > 50 and y < 55:
-                states[x][y] = ({"a": 0, "b": 1})
- 
+    if x > 40 and x < 45 and y > 40 and y < 45:
+
+        states[x][y] = ({"a": 0, "b": 1})
+    elif x > 50 and x < 55 and y > 50 and y < 55:
+        states[x][y] = ({"a": 0, "b": 1})
+
     return states 
 
 def update(states):
