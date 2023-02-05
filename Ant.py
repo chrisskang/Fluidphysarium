@@ -2,15 +2,18 @@ import Rhino.Geometry as rg
 import random
 import math
 import copy
+import System.Drawing as drawing
+import time
 
 
 class AgentSystem:
 
     def __init__(self, count):
         self.Agents = []
+        self.Grid = []
 
         for i in range(0,count):
-            randPos = rg.Point3d(random.uniform(0.0,10.0),random.uniform(0.0,10.0), 0.0)
+            randPos = rg.Point3d(random.uniform(0.0,size),random.uniform(0.0,size), random.uniform(0.0,size))
             agent = Agent(randPos)
             agent.System = self
             self.Agents.append(agent)
@@ -98,10 +101,11 @@ class Agent:
             #print("target ", self.Counter)
 
 
-        if self.Position.DistanceTo(self.Target) < 0.01:
+        if self.Position.DistanceTo(self.Target) < 0.1:
             self.Counter += 1
 
             self.Target = self.Path[self.Counter]
+
             #print("switched to target",  self.Counter)
         
         #if counter is at the end of the path, reset counter and target
@@ -112,8 +116,10 @@ class Agent:
         #print(len(self.Path))
 
         orientedVector = self.Target - self.Position
+        
+        orientedVector.Unitize()
 
-        orientedVector = orientedVector / 10
+        orientedVector*= 0.1
         #dividedVector = orientedVector / 10
 
         self.Velocity = orientedVector
@@ -127,36 +133,228 @@ class Target:
         self.Position = []
 
         for i in range(0,count):
-            self.Position.append(rg.Point3d(random.uniform(0.0,10.0),random.uniform(0.0,10.0), 0.0))
-        
+            self.Position.append(rg.Point3d(random.uniform(0.0,size),random.uniform(0.0,size), random.uniform(0.0,size)))
+
+# class Pheromone:
+
+#     def __init__(self):
+#         Pheromone.Value = 0.0
+
+#     def Update(self, antSystem):
+#         for ant in antSystem.Agents:
+#             self.Grid[int(ant.Position.X)][int(ant.Position.Y)] += 1
+
+
 class Grid:
     #grid plots value in a list of lists
-    def __init__(self, x, y, initValue):
-        self.x = x 
-        self.y = y
+    def __init__(self, size, resolution, initValue):
+        self.Num = int(size/resolution)
+        self.Num += 1
+        self.Grid = []
+        self.System = None
+        self.Resolution = resolution
 
-        self.grid = []
-        for i in range(0,x):
-            self.grid.append([initValue])
-            for j in range(0,y):
-                self.grid[i].append(initValue)
+        self.Next = []
+        
+        for i in range(0,self.Num):
+            self.Grid.append([])
+            self.Next.append([])
+            for j in range(0,self.Num):
+                self.Grid[i].append([])
+                self.Next[i].append([])
+                for k in range(0,self.Num):
+                    self.Grid[i][j].append({"White": initValue, "Black": 0})
+                    self.Next[i][j].append({"White": initValue, "Black": 0})
+        
+     
+    def ReactionDiffusion(self, D_a, D_b, f, k):
+        for x in range(self.Num):
+            for y in range(self.Num):
+                for z in range(self.Num):
+                    if x > 0 and y > 0 and z > 0 and x < (self.Num -1) and y < (self.Num-1) and z < (self.Num-1):
+
+                        a = self.Grid[x][y][z]["White"]
+                    
+                        b = self.Grid[x][y][z]["Black"]
+
+                        self.Next[x][y][z]["White"] = a + (D_a * self.laplace(x,y, z,"White")) - (a * b * b) + (f * (1 - a))
+                        self.Next[x][y][z]["Black"] = b + (D_b * self.laplace(x,y, z,"Black")) + (a * b * b) - ((k + f)* b)
+
+                        self.Next[x][y][z]["White"] = self.constrain(self.Next[x][y][z]["White"],0,1)
+
+                        self.Next[x][y][z]["Black"] = self.constrain(self.Next[x][y][z]["Black"],0,1)
+
+
+    def laplace(self, x, y, z, selector):
+        if selector == "White":
+            #print("selector is a")
+            sumA = 0
+            sumA += self.Grid[x][y][z]["White"] * -1
+
+            sumA += self.Grid[x-1][y][z]["White"] * 0.2
+            sumA += self.Grid[x+1][y][z]["White"] * 0.2
+            sumA += self.Grid[x][y+1][z]["White"] * 0.2
+            sumA += self.Grid[x][y-1][z]["White"] * 0.2
+
+            sumA += self.Grid[x-1][y-1][z]["White"] * 0.05
+            sumA += self.Grid[x+1][y-1][z]["White"] * 0.05
+            sumA += self.Grid[x+1][y+1][z]["White"] * 0.05
+            sumA += self.Grid[x-1][y+1][z]["White"] * 0.05
+
+            # sumA += self.Grid[x][y][z+1]["White"] * 0.01
+            # sumA += self.Grid[x][y][z-1]["White"] * 0.01
+
+            # sumA += self.Grid[x-1][y-1][z-1]["White"] * 0.01
+            # sumA += self.Grid[x+1][y-1][z-1]["White"] * 0.01
+            # sumA += self.Grid[x+1][y+1][z-1]["White"] * 0.01
+            # sumA += self.Grid[x-1][y+1][z-1]["White"] * 0.01
+
+            # sumA += self.Grid[x-1][y-1][z+1]["White"] * 0.01
+            # sumA += self.Grid[x+1][y-1][z+1]["White"] * 0.01
+            # sumA += self.Grid[x+1][y+1][z+1]["White"] * 0.01
+            # sumA += self.Grid[x-1][y+1][z+1]["White"] * 0.01
+
+            return sumA
+        else:
+            #print("selector is b")
+            sumB = 0
+            sumB += self.Grid[x][y][z]["Black"] * -1
+
+            sumB += self.Grid[x-1][y][z]["Black"] * 0.2
+            sumB += self.Grid[x+1][y][z]["Black"] * 0.2
+            sumB += self.Grid[x][y+1][z]["Black"] * 0.2
+            sumB += self.Grid[x][y-1][z]["Black"] * 0.2
+
+
+
+            sumB += self.Grid[x-1][y-1][z]["Black"] * 0.05
+            sumB += self.Grid[x+1][y-1][z]["Black"] * 0.05
+            sumB += self.Grid[x+1][y+1][z]["Black"] * 0.05
+            sumB += self.Grid[x-1][y+1][z]["Black"] * 0.05
+
+            # sumB += self.Grid[x][y][z+1]["Black"] * 0.01
+            # sumB += self.Grid[x][y][z-1]["Black"] * 0.01
+
+            # sumB += self.Grid[x-1][y-1][z-1]["Black"] * 0.01
+            # sumB += self.Grid[x+1][y-1][z-1]["Black"] * 0.01
+            # sumB += self.Grid[x+1][y+1][z-1]["Black"] * 0.01
+            # sumB += self.Grid[x-1][y+1][z-1]["Black"] * 0.01
+
+            # sumB += self.Grid[x-1][y-1][z+1]["Black"] * 0.01
+            # sumB += self.Grid[x+1][y-1][z+1]["Black"] * 0.01
+            # sumB += self.Grid[x+1][y+1][z+1]["Black"] * 0.01
+            # sumB += self.Grid[x-1][y+1][z+1]["Black"] * 0.01
+
+
+
+            return sumB
+
+    def constrain(self, val, min_val, max_val):
+        return min(max_val, max(min_val, val))
+
+    def Update(self, AgentSystem):
+        self.ReactionDiffusion(1,0.5,0.055,0.062)
+        self.Swap()
+
+        #self.Decay()
+        
+        
+        for ant in AgentSystem.Agents:
+
+            self.Grid[int(ant.Position.X/self.Resolution)][int(ant.Position.Y/self.Resolution)][int(ant.Position.Z/self.Resolution)]["Black"] += 0.4
+
+    
+
+    def Decay(self):
+        for x in range(self.Num):
+            for y in range(self.Num):
+                for z in range(self.Num):
+                #self.Grid[x][y]["White"] *= 0.95
+                    self.Grid[x][y][z]["Black"] *= 0.95
+    
+        
+
+    def Swap(self):
+        temp = self.Grid
+        self.Grid = self.Next
+        self.Next = temp
+
+    def Drawmesh(self):
+        
+        displayMesh = rg.Mesh()
+        colors = []
+        for x in range(self.Num):
+            for y in range(self.Num):
+                for z in range(self.Num):
+                    if self.Grid[x][y][z]["Black"] > 0.1:
+                        displayMesh.Vertices.Add(rg.Point3d(x*self.Resolution,y*self.Resolution,z*self.Resolution))
+                        displayMesh.Vertices.Add(rg.Point3d((x+1)*self.Resolution,y*self.Resolution,z*self.Resolution))
+                        displayMesh.Vertices.Add(rg.Point3d((x+1)*self.Resolution,(y+1)*self.Resolution,z*self.Resolution))
+                        displayMesh.Vertices.Add(rg.Point3d(x*self.Resolution, (y+1)*self.Resolution,z*self.Resolution))
+
+                        # displayMesh.Vertices.Add(rg.Point3d(x*self.Resolution,y*self.Resolution,(z+0.5)*self.Resolution))
+                        # displayMesh.Vertices.Add(rg.Point3d((x+1)*self.Resolution,y*self.Resolution,(z+0.5)*self.Resolution))
+                        # displayMesh.Vertices.Add(rg.Point3d((x+1)*self.Resolution,(y+1)*self.Resolution,(z+0.5)*self.Resolution))
+                        # displayMesh.Vertices.Add(rg.Point3d(x*self.Resolution, (y+1)*self.Resolution,(z+0.5)*self.Resolution))
+
+                        v = displayMesh.Vertices.Count
+
+                        # displayMesh.Faces.AddFace(v-8,v-7,v-6,v-5)
+                        
+
+                        # displayMesh.Faces.AddFace(v-8,v-7,v-3,v-4)
+                        # displayMesh.Faces.AddFace(v-7,v-6,v-2,v-3)
+                        # displayMesh.Faces.AddFace(v-6,v-5,v-1,v-2)
+                        # displayMesh.Faces.AddFace(v-5,v-8,v-4,v-1)
+
+                        displayMesh.Faces.AddFace(v-4,v-3,v-2,v-1)
+                        #print(v)
+
+                        value = (self.Grid[x][y][z]["White"]-self.Grid[x][y][z]["Black"])* 255
+
+                        if value > 255:
+                            value = 255
+                        elif value < 0:
+                            value = 0
+
+                        colors.append(drawing.Color.FromArgb(0, value,value,value))
+            
+        for i in range(len(displayMesh.Faces)):
+            #does not want to assign or overwrite the color of the face
+
+            #loop through all the faces and assign the color without overwriting the previous color in each verticies
+            
+            face = displayMesh.Faces[i]
+
+            color = colors[i]
+
+            displayMesh.VertexColors.SetColor(face,color)
+
+
+        return displayMesh
+    
+        
 
     def Plot(self):
         points = []
-        for i in range(0,self.x):
-            for j in range(0,self.y):
-                points.append(rg.Point3d(i,j,0))
-
-
-
-
-
-
-
-
-TargetNum = 30
-antNum = 100
-resolution = 1
+        for i in range(self.Num):
+            for j in range(self.Num):
+                for k in range(self.Num):
+                    points.append(rg.Point3d(i*self.Resolution,j*self.Resolution,k*self.Resolution))
+        return points
+    
+    def PlotValues(self):
+        Vals = []
+        for i in range(self.Num):
+            for j in range(self.Num):
+                for k in range(self.Num):
+                    Vals.append(self.Grid[i][j][k]["Black"])
+        return Vals
+TargetNum = 3
+antNum = 10
+size = 100
+resolution = 5
+counter = 0
 #main code
 
 if Reset: #initialize
@@ -167,17 +365,36 @@ if Reset: #initialize
 
     antSystem.FindPath(targets)
 
-    #grid = Grid(10/resolution,10/resolution,0)
+    myGrid = Grid(size, resolution, 1)
+    
     
 
 else:
+
+    startTime = time.time()
+
     antSystem.Update(targets)
+
+    #print(myGrid.Grid[0])
+
+    myGrid.Update(antSystem)
+
+    d = myGrid.Drawmesh()
+
+    #d = myGrid.Plot()
+    #e = myGrid.PlotValues()
+    print("--- %s seconds ---" % ((time.time() - startTime)))
+    #d = myGrid.Plot()
+
+
+
 
 #visualization
 
 targetResult = []
 antResult = []
 pathResult = []
+
 
 for t in targets.Position:
     
@@ -187,8 +404,7 @@ for ant in antSystem.Agents:
     antResult.append(ant.Position)
     pathResult.append(rg.PolylineCurve(ant.History))
 
-
-
 a = antResult
 b = targetResult
-c = pathResult
+#c = pathResult
+
