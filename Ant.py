@@ -21,10 +21,6 @@ class AgentSystem:
             agent.System = self #Connect the agent to the system
             agent.FindTrail(self.Foods) #find the trail to the food
             self.Agents.append(agent)
-            
-
-        
-
         
     def Update(self):
 
@@ -33,11 +29,6 @@ class AgentSystem:
             agent.Update(self.Foods, self.Grid) #update the agent position and velocity
         
         self.Grid.Update(self) #update the grid of pheromone data
-
-
-
-
-#distances.append(math.pow((1 / distance),2))
 
 class Agent:
 
@@ -51,7 +42,6 @@ class Agent:
         #random initial agent velocity
         self.Velocity = rg.Vector3d(random.uniform(-self.Size/100,self.Size/100),random.uniform(-self.Size/100,self.Size/100),0)
         self.Velocity.Unitize()
-        self.Velocity *= 1
         self.Target = None #target position
         #History of the agent's position
         self.History = [self.Position]
@@ -95,7 +85,7 @@ class Agent:
         foodscopy = copy.deepcopy(foods)
         self.FindClosestPoint(foodscopy)
     
-    def SteerWithTrail(self):
+    def SteerWithTrail(self, steerStrength):
         
 
         if self.Counter < len(self.Path)-1 and self.RunCounter < 1:
@@ -104,13 +94,13 @@ class Agent:
             
 
 
-            if self.Position.DistanceTo(self.Target) < 1:
+            if self.Position.DistanceTo(self.Target) < 5:
                 self.Counter += 1
 
                 self.Target = self.Path[self.Counter]
             orientedVector = self.Target - self.Position
             orientedVector.Unitize()
-            self.Velocity += orientedVector * 0.5
+            self.Velocity += orientedVector * steerStrength
 
         else:
             self.Counter = 0
@@ -199,8 +189,8 @@ class Agent:
     def Update(self, Food, grid):
         
         self.ReflectAtBoundary()
-        self.SteerWithPheromone(2)
-        self.SteerWithTrail()
+        self.SteerWithPheromone(SteerWithPheromoneScale)
+        self.SteerWithTrail(SteerWithFoodScale)
         #print(self.Velocity)
         self.Velocity.Unitize()
         self.Position += self.Velocity
@@ -234,20 +224,16 @@ class PheromoneGrid:
 
     def Update(self, AgentSystem):
         
-
-        
-        
-        
         for ant in AgentSystem.Agents:
 
-            self.Grid[int(ant.Position.X/self.Resolution)][int(ant.Position.Y/self.Resolution)]["Black"] += 1
+            self.Grid[int(ant.Position.X/self.Resolution)][int(ant.Position.Y/self.Resolution)]["Black"] += AntPheromoneReleaseRate
 
-        # for food in AgentSystem.Foods.Position:
-        #     self.Grid[int(food.X/self.Resolution)][int(food.Y/self.Resolution)]["Black"] += 1
+        for food in AgentSystem.Foods.Position:
+            self.Grid[int(food.X/self.Resolution)][int(food.Y/self.Resolution)]["Black"] += FoodPheromoneReleaseRate
 
-        self.Decay()
+        self.Decay(decayRate)
         self.Diffuse()
-        self.ReactionDiffusion(1,0.5,0.055,0.62)
+        self.ReactionDiffusion(RD_DA, RD_DB, RD_F, RD_K)
         self.Swap()
   
     def Diffuse(self):
@@ -356,11 +342,11 @@ class PheromoneGrid:
     def constrain(self, val, min_val, max_val):
         return min(max_val, max(min_val, val))
   
-    def Decay(self):
+    def Decay(self, Rate):
         for x in range(self.Num):
             for y in range(self.Num):
                 #self.Grid[x][y]["White"] *= 0.95
-                self.Grid[x][y]["Black"] *= 0.999
+                self.Grid[x][y]["Black"] *= Rate
     
     def Swap(self):
         temp = self.Grid
@@ -430,15 +416,27 @@ class PheromoneGrid:
 
 #main code
 
-FoodNum = 10
-antNum = 100
+FoodNum = 3
+antNum = 300
 size = 100
 resolution = 1
+
+decayRate = 0.98
+RD_DA = 1
+RD_DB = 0.5
+RD_F = 0.055
+RD_K = 0.062
+SteerWithPheromoneScale = 5 #0~10
+SteerWithFoodScale = 0.7 #0~1
+AntPheromoneReleaseRate = 1 #0~1
+FoodPheromoneReleaseRate = 1 #0~1
+
+
+#Reset = False
 
 
 FoodLocation = []
 antLocation = []
-lines = []
 
 if Reset: 
     #Initialize the system with the number of ants and food, size of the grid and resolution of the grid
@@ -459,7 +457,7 @@ else:
     #Visualize
     for ant in antSystem.Agents:
         antLocation.append(ant.Position)
-        lines.append(rg.PolylineCurve(ant.Path))
+       
     
     for f in antSystem.Foods.Position:
         
@@ -470,15 +468,10 @@ else:
     a = antLocation
     b = FoodLocation
     c = antSystem.Grid.Drawmesh()
-    d = lines
+
 
     antSystem.Update()
 
-    
-
-
-
-    
-    #c = rg.NurbsSurface.CreateFromPoints(myGrid.PlotPoint(), myGrid.Num, myGrid.Num,3,3)
+    #d = rg.NurbsSurface.CreateFromPoints(antSystem.Grid.PlotPoint(), antSystem.Grid.Num, antSystem.Grid.Num,3,3)
     print("--- %s seconds ---" % ((time.time() - startTime))) #Print the time it takes to run the code
 
