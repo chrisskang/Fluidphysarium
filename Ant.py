@@ -409,14 +409,31 @@ class PheromoneGrid:
         for x in range(self.Num):
             for y in range(self.Num):
 
-                points.append(rg.Point3d(x*self.Resolution,y*self.Resolution,self.Grid[x][y]["Black"]*5))
+                points.append(self.Grid[x][y]["Black"])
         return points
 
+    def PlotSphere(self):
+        points = []
+        radius = 10
+        for x in range(0,self.Num):
+            for y in range(0,self.Num):
+                x = x/10
+                y = y/10
+                lon = x / math.pi
 
+                lat = math.atan(math.exp(-2 *math.pi*y))
+
+                px = 20 * math.cos(lat) * math.cos(lon)
+                py = 20 * math.cos(lat) * math.sin(lon)
+                pz = 20 * math.sin(lat)
+                
+                points.append(rg.Point3d(px,py,pz))
+
+        return points
 
 #main code
 
-FoodNum = 3
+FoodNum = 30
 antNum = 300
 size = 100
 resolution = 1
@@ -468,7 +485,8 @@ else:
     a = antLocation
     b = FoodLocation
     c = antSystem.Grid.Drawmesh()
-
+    
+    d = antSystem.Grid.PlotPoint()
 
     antSystem.Update()
 
